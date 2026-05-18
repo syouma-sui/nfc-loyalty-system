@@ -4,147 +4,223 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NFC来店ルーレット</title>
+
   <style>
-    * { box-sizing: border-box; }
     body {
       margin: 0;
-      min-height: 100vh;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: system-ui, sans-serif;
       background: linear-gradient(135deg, #111, #333);
       color: #fff;
+      min-height: 100vh;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       padding: 20px;
     }
+
     .card {
       width: 100%;
-      max-width: 420px;
-      background: #fff;
-      color: #111;
+      max-width: 430px;
+      background: #222;
       border-radius: 28px;
-      padding: 28px 22px;
+      padding: 26px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
       text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
     }
-    .label {
-      font-size: 13px;
-      color: #777;
-      letter-spacing: 0.12em;
+
+    h1 {
+      font-size: 30px;
       margin-bottom: 8px;
     }
-    h1 {
-      margin: 0 0 22px;
-      font-size: 30px;
-      line-height: 1.2;
+
+    p {
+      color: #ccc;
+      line-height: 1.6;
     }
-    .roulette-box {
-      background: #111;
-      color: #fff;
-      border-radius: 22px;
-      min-height: 150px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 22px;
-      font-size: 22px;
-      font-weight: 800;
-      margin-bottom: 22px;
-      white-space: pre-line;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-    .spinning {
-      animation: shake 0.08s infinite;
-      opacity: 0.85;
-    }
-    @keyframes shake {
-      0% { transform: translateX(-3px) rotate(-1deg); }
-      50% { transform: translateX(3px) rotate(1deg); }
-      100% { transform: translateX(-3px) rotate(-1deg); }
-    }
-    button {
+
+    select, input, button {
       width: 100%;
+      box-sizing: border-box;
+      padding: 15px;
+      border-radius: 14px;
       border: none;
-      background: #111;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 700;
-      border-radius: 18px;
-      padding: 16px;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+
+    button {
+      background: #00c853;
+      color: white;
+      font-weight: bold;
       cursor: pointer;
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .note {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #666;
-      line-height: 1.7;
+
+    .sub {
+      background: #444;
     }
-    .coupon-code {
-      margin-top: 14px;
-      padding: 12px;
-      border: 1px dashed #999;
-      border-radius: 14px;
-      font-weight: 700;
-      display: none;
+
+    .coupon {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 18px;
+      background: #111;
+      border: 1px solid #555;
+      text-align: left;
     }
+
+    .big {
+      font-size: 30px;
+      font-weight: 800;
+      text-align: center;
+      margin: 18px 0;
+    }
+
+    .ok { color: #9cffb0; }
+    .bad { color: #ff9c9c; }
   </style>
 </head>
+
 <body>
   <div class="card">
-    <div class="label">NFC TOUCH BONUS</div>
-    <h1>🎰 来店ルーレット</h1>
+    <h1>🎯 NFC来店ルーレット</h1>
+    <p>NFCタッチで来店記録。<br>ルーレットでクーポン発行。</p>
 
-    <div id="result" class="roulette-box">ボタンを押して抽選！</div>
+    <select id="storeId">
+      <option value="honmachi">本町店</option>
+      <option value="shinsaibashi">心斎橋店</option>
+    </select>
 
-    <button id="spinButton" onclick="spinRoulette()">ルーレットを回す</button>
+    <input id="name" placeholder="名前を入力" />
 
-    <div id="couponCode" class="coupon-code">クーポンコード：NFC100</div>
+    <button onclick="checkin()">START</button>
+    <button class="sub" onclick="loadCoupons()">マイクーポンを見る</button>
 
-    <div class="note">
-      📱 NFCタップ後にこの画面を表示<br />
-      🎁 当選内容をスタッフへ提示してください
-    </div>
+    <div id="result"></div>
+    <div id="coupons"></div>
   </div>
 
-  <script>
-    const rewards = [
-      "☕ ドリンク100円OFF",
-      "🍷 ワイン1杯半額",
-      "🥨 おつまみ無料",
-      "🎉 次回5%OFF",
-      "😢 はずれ\nでも来店ありがとう！"
-    ];
+<script>
+const GAS_URL = "ここにGASのデプロイURL";
 
-    function spinRoulette() {
-      const result = document.getElementById("result");
-      const button = document.getElementById("spinButton");
-      const coupon = document.getElementById("couponCode");
+let customerId = localStorage.getItem("customerId") || "";
 
-      button.disabled = true;
-      coupon.style.display = "none";
-      result.classList.add("spinning");
-      result.textContent = "抽選中...";
+if (!localStorage.getItem("browserId")) {
+  localStorage.setItem("browserId", "B-" + crypto.randomUUID());
+}
 
-      let count = 0;
-      const interval = setInterval(() => {
-        result.textContent = rewards[Math.floor(Math.random() * rewards.length)];
-        count++;
+async function api(payload) {
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 
-        if (count > 18) {
-          clearInterval(interval);
-          const finalReward = rewards[Math.floor(Math.random() * rewards.length)];
-          result.classList.remove("spinning");
-          result.textContent = finalReward;
-          button.textContent = "もう一度回す";
-          button.disabled = false;
+  return await res.json();
+}
 
-          if (!finalReward.includes("はずれ")) {
-            coupon.style.display = "block";
-          }
-        }
-      }, 100);
+async function checkin() {
+  const result = document.getElementById("result");
+
+  const name = document.getElementById("name").value;
+  const storeId = document.getElementById("storeId").value;
+
+  if (!name) {
+    alert("名前を入力してください");
+    return;
+  }
+
+  result.innerHTML = "<p>来店記録中...</p>";
+
+  const data = await api({
+    action: "checkin",
+    storeId,
+    name,
+    browserId: localStorage.getItem("browserId"),
+    lineUserId: "",
+    lineAdded: false
+  });
+
+  if (!data.ok) {
+    result.innerHTML = `<p class="bad">${data.message}</p>`;
+
+    if (data.customerId) {
+      customerId = data.customerId;
+      localStorage.setItem("customerId", customerId);
     }
-  </script>
+
+    return;
+  }
+
+  customerId = data.customerId;
+  localStorage.setItem("customerId", customerId);
+
+  result.innerHTML = `
+    <div class="coupon">
+      <div class="big">🎯 ${data.prize}</div>
+      <p class="ok">クーポンを発行しました</p>
+      <p>顧客ID：<b>${data.customerId}</b></p>
+      <p>クーポンコード：<b>${data.couponCode}</b></p>
+      <p>使用可能日：${data.usableDate}</p>
+      <p>${data.lineAdded ? "LINE追加済み：当日使用可" : "次回来店から使用可"}</p>
+    </div>
+  `;
+
+  loadCoupons();
+}
+
+async function loadCoupons() {
+  const box = document.getElementById("coupons");
+
+  if (!customerId) {
+    box.innerHTML = "<p>まだクーポンがありません。</p>";
+    return;
+  }
+
+  box.innerHTML = "<p>マイクーポン読み込み中...</p>";
+
+  const data = await api({
+    action: "myCoupons",
+    customerId
+  });
+
+  if (!data.ok || data.coupons.length === 0) {
+    box.innerHTML = "<p>未使用クーポンはありません。</p>";
+    return;
+  }
+
+  box.innerHTML = "<h2>マイクーポン</h2>";
+
+  data.coupons.forEach(c => {
+    box.innerHTML += `
+      <div class="coupon">
+        <h3>${c.prize}</h3>
+        <p>コード：<b>${c.couponCode}</b></p>
+        <p>使用可能日：${c.usableDate}</p>
+        <p>${c.note}</p>
+
+        <input id="pin-${c.couponCode}" placeholder="店員PINを入力" />
+        <button onclick="useCoupon('${c.couponCode}')">使用する</button>
+      </div>
+    `;
+  });
+}
+
+async function useCoupon(code) {
+  const pin = document.getElementById("pin-" + code).value;
+
+  const data = await api({
+    action: "useCoupon",
+    couponCode: code,
+    pin,
+    storeId: document.getElementById("storeId").value
+  });
+
+  alert(data.message);
+
+  if (data.ok) {
+    loadCoupons();
+  }
+}
+</script>
+
 </body>
 </html>
