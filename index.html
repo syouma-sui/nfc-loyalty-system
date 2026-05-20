@@ -29,8 +29,15 @@
       text-align: center;
     }
 
-    h1 { font-size: 30px; margin-bottom: 8px; }
-    p { color: #ccc; line-height: 1.6; }
+    h1 {
+      font-size: 30px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: #ccc;
+      line-height: 1.6;
+    }
 
     select, button, input {
       width: 100%;
@@ -49,7 +56,9 @@
       cursor: pointer;
     }
 
-    .sub { background: #444; }
+    .sub {
+      background: #444;
+    }
 
     .coupon {
       margin-top: 18px;
@@ -67,19 +76,43 @@
       margin: 18px 0;
     }
 
-    .ok { color: #9cffb0; }
-    .bad { color: #ff9c9c; }
-    .small { font-size: 13px; color: #aaa; }
-    .user { font-size: 18px; font-weight: bold; color: #fff; }
+    .ok {
+      color: #9cffb0;
+    }
+
+    .bad {
+      color: #ff9c9c;
+    }
+
+    .small {
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .user {
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .status {
+      font-size: 13px;
+      color: #9cffb0;
+    }
   </style>
 </head>
 
 <body>
   <div class="card">
     <h1>🎯 NFC来店ルーレット</h1>
-    <p>NFCタッチで来店記録。<br>LINE連携でクーポン管理。</p>
+
+    <p>
+      NFCタッチで来店記録。<br>
+      LINE連携でクーポン管理。
+    </p>
 
     <p class="user" id="userName">LINEログイン確認中...</p>
+    <p class="status" id="lineStatus"></p>
 
     <select id="storeId">
       <option value="honmachi">本町店</option>
@@ -116,11 +149,12 @@ async function initLiff() {
     }
 
     const profile = await liff.getProfile();
+
     lineUserId = profile.userId;
     lineDisplayName = profile.displayName || "LINEユーザー";
 
     document.getElementById("userName").innerText =
-      `${lineDisplayName} さん、こんにちは`;
+      lineDisplayName + " さん、こんにちは";
 
     try {
       const friendship = await liff.getFriendship();
@@ -129,9 +163,18 @@ async function initLiff() {
       lineAdded = false;
     }
 
+    document.getElementById("lineStatus").innerText =
+      lineAdded ? "LINE友だち確認済み" : "LINEログイン済み";
+
+    loadCoupons();
+
   } catch (e) {
     document.getElementById("userName").innerText =
       "LINEで開いてください";
+
+    document.getElementById("lineStatus").innerText =
+      "LINE情報を取得できませんでした";
+
     console.log(e);
   }
 }
@@ -158,11 +201,11 @@ async function checkin() {
 
   const data = await api({
     action: "checkin",
-    storeId,
-    name: lineDisplayName,
+    storeId: storeId,
+    lineUserId: lineUserId,
+    lineDisplayName: lineDisplayName,
     browserId: localStorage.getItem("browserId"),
-    lineUserId,
-    lineAdded
+    lineAdded: lineAdded
   });
 
   if (!data.ok) {
@@ -170,17 +213,28 @@ async function checkin() {
     return;
   }
 
-  customerId = data.customerId || customerId;
-  if (customerId) localStorage.setItem("customerId", customerId);
+  customerId = data.customerId;
+  localStorage.setItem("customerId", customerId);
 
   result.innerHTML = `
     <div class="coupon">
       <div class="big">🎯 ${data.prize}</div>
+
       <p class="ok">${data.message}</p>
+
+      <p>お名前：<b>${data.lineDisplayName}</b></p>
       <p>クーポンコード：<b>${data.couponCode}</b></p>
       <p>使用可能：<b>${data.usableDate}</b></p>
-      <p>${data.lineAdded ? "LINE連携済み：当日使用できます" : "次回来店時から使用できます"}</p>
-      <p class="small">※顧客情報は店舗管理用に保存されています。</p>
+
+      <p>
+        ${data.lineAdded
+          ? "LINE友だち確認済み：当日使用できます"
+          : "次回来店時から使用できます"}
+      </p>
+
+      <p class="small">
+        ※LINEユーザー情報は店舗管理用に保存されています。
+      </p>
     </div>
   `;
 
@@ -190,7 +244,7 @@ async function checkin() {
 async function loadCoupons() {
   const box = document.getElementById("coupons");
 
-  if (!customerId) {
+  if (!lineUserId && !customerId) {
     box.innerHTML = "<p>まだクーポンがありません。</p>";
     return;
   }
@@ -199,7 +253,8 @@ async function loadCoupons() {
 
   const data = await api({
     action: "myCoupons",
-    customerId
+    customerId: customerId,
+    lineUserId: lineUserId
   });
 
   if (!data.ok || data.coupons.length === 0) {
@@ -213,12 +268,17 @@ async function loadCoupons() {
     box.innerHTML += `
       <div class="coupon">
         <h3>${c.prize}</h3>
+
+        <p>お名前：<b>${c.lineDisplayName}</b></p>
         <p>コード：<b>${c.couponCode}</b></p>
-        <p>使用可能：<b>${c.usableDate}</b></p>
+        <p>使用可能：<b>${formatDate(c.usableDate)}</b></p>
         <p>${c.note}</p>
 
         <input id="pin-${c.couponCode}" placeholder="店員PINを入力" />
-        <button onclick="useCoupon('${c.couponCode}')">使用する</button>
+
+        <button onclick="useCoupon('${c.couponCode}')">
+          使用する
+        </button>
       </div>
     `;
   });
@@ -230,7 +290,7 @@ async function useCoupon(code) {
   const data = await api({
     action: "useCoupon",
     couponCode: code,
-    pin,
+    pin: pin,
     storeId: document.getElementById("storeId").value
   });
 
@@ -239,6 +299,19 @@ async function useCoupon(code) {
   if (data.ok) {
     loadCoupons();
   }
+}
+
+function formatDate(value) {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    if (value.includes("T")) {
+      return value.split("T")[0];
+    }
+    return value;
+  }
+
+  return value;
 }
 
 initLiff();
