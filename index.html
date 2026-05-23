@@ -115,7 +115,6 @@
 
     let lineUserId = "";
     let lineDisplayName = "";
-    let isFriend = false;
 
     const resultEl = document.getElementById("result");
     const storeSelect = document.getElementById("storeSelect");
@@ -136,13 +135,6 @@
 
         lineUserId = profile.userId;
         lineDisplayName = profile.displayName;
-
-        try {
-          const friendship = await liff.getFriendship();
-          isFriend = friendship.friendFlag;
-        } catch (e) {
-          isFriend = false;
-        }
 
       } catch (error) {
         resultEl.innerText = "LINEアプリから開いてください";
@@ -165,8 +157,7 @@
           body: JSON.stringify({
             storeId: storeSelect.value,
             lineUserId: lineUserId,
-            lineDisplayName: lineDisplayName,
-            isFriend: isFriend
+            lineDisplayName: lineDisplayName
           })
         });
 
