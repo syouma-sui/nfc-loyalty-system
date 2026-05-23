@@ -1,389 +1,260 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-<title>NFC来店ルーレット</title>
+  <title>NFC来店ルーレット</title>
 
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-<style>
+  <style>
+    body {
+      margin: 0;
+      background: #0b0b0b;
+      color: white;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
 
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-}
+    .card {
+      width: 86%;
+      max-width: 430px;
+      background: #1f1f1f;
+      border-radius: 28px;
+      padding: 36px 28px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    }
 
-body{
-  background:#0f0f0f;
-  color:white;
-  font-family:sans-serif;
-  min-height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  padding:20px;
-}
+    h1 {
+      font-size: 34px;
+      line-height: 1.35;
+      margin-bottom: 22px;
+    }
 
-.card{
-  width:100%;
-  max-width:430px;
-  background:#1d1d1d;
-  border-radius:28px;
-  padding:26px;
-  box-shadow:0 20px 60px rgba(0,0,0,.5);
-}
+    .sub {
+      color: #bdbdbd;
+      font-size: 18px;
+      line-height: 1.7;
+      margin-bottom: 36px;
+    }
 
-h1{
-  font-size:34px;
-  margin-bottom:10px;
-  text-align:center;
-}
+    #userName {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
 
-.desc{
-  color:#bbb;
-  text-align:center;
-  line-height:1.7;
-  margin-bottom:30px;
-}
+    #loginStatus {
+      color: #5ef28b;
+      font-size: 20px;
+      margin-bottom: 34px;
+    }
 
-.user{
-  text-align:center;
-  font-size:24px;
-  font-weight:bold;
-  margin-bottom:10px;
-}
+    select,
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 18px;
+      padding: 20px;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+    }
 
-.loginok{
-  text-align:center;
-  color:#7dff9c;
-  margin-bottom:25px;
-}
+    select {
+      background: #f1f1f1;
+      color: #111;
+    }
 
-select,button,input{
-  width:100%;
-  border:none;
-  border-radius:16px;
-  padding:18px;
-  font-size:18px;
-  margin-top:14px;
-}
+    .start {
+      background: #06c755;
+      color: white;
+    }
 
-button{
-  background:#00c853;
-  color:white;
-  font-weight:bold;
-}
+    .coupon {
+      background: #444;
+      color: white;
+    }
 
-.sub{
-  background:#444;
-}
-
-.result{
-  margin-top:30px;
-}
-
-.coupon{
-  margin-top:18px;
-  background:#101010;
-  border:1px solid #444;
-  border-radius:22px;
-  padding:20px;
-}
-
-.big{
-  font-size:34px;
-  font-weight:800;
-  text-align:center;
-  margin:20px 0;
-}
-
-.ok{
-  color:#7dff9c;
-}
-
-.bad{
-  color:#ff8f8f;
-}
-
-.small{
-  font-size:13px;
-  color:#aaa;
-  margin-top:15px;
-}
-
-</style>
+    #result {
+      margin-top: 28px;
+      font-size: 20px;
+      color: #ff9aa8;
+      line-height: 1.6;
+      min-height: 32px;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="card">
+  <div class="card">
 
-<h1>🎯 NFC来店ルーレット</h1>
+    <h1>🎯 NFC来店ルーレット</h1>
 
-<p class="desc">
-NFCタッチで来店記録。<br>
-LINE連携でクーポン管理。
-</p>
-
-<div class="user" id="userName">LINEログイン確認中...</div>
-
-<div class="loginok" id="loginStatus"></div>
-
-<select id="store">
-<option value="honmachi">本町店</option>
-<option value="namba">難波店</option>
-<option value="umeda">梅田店</option>
-</select>
-
-<button onclick="startRoulette()">START</button>
-
-<button class="sub" onclick="loadCoupons()">
-マイクーポンを見る
-</button>
-
-<div class="result" id="result"></div>
-
-<div class="result" id="couponList"></div>
-
-</div>
-
-<script>
-
-const API_URL = "https://script.google.com/macros/s/AKfycbyyM-mrcMP30BpdTpG9judBsTa8NrdO49pL4Igx0D2MUh5vtE8G94MppS-jL9c_8syp5g/exec";
-
-const LIFF_ID = "2010146801-oMs3Tgbe";
-
-let lineUserId = "";
-let lineDisplayName = "";
-let linePicture = "";
-let customerId = "";
-
-async function initLiff(){
-
-  await liff.init({
-    liffId: LIFF_ID
-  });
-
-  if(!liff.isLoggedIn()){
-    liff.login();
-    return;
-  }
-
-  const profile = await liff.getProfile();
-
-  lineUserId = profile.userId;
-  lineDisplayName = profile.displayName;
-  linePicture = profile.pictureUrl;
-
-  document.getElementById("userName").innerText =
-    `${lineDisplayName} さん、こんにちは`;
-
-  document.getElementById("loginStatus").innerText =
-    "LINEログイン済み";
-
-}
-
-initLiff();
-
-async function api(body){
-
-  const res = await fetch(API_URL,{
-    method:"POST",
-    body:JSON.stringify(body)
-  });
-
-  return await res.json();
-
-}
-
-async function startRoulette(){
-
-  const result = document.getElementById("result");
-
-  const storeId =
-    document.getElementById("store").value;
-
-  if(!lineUserId){
-
-    alert("LINEログインが必要です");
-    return;
-
-  }
-
-  result.innerHTML = "<p>来店記録中...</p>";
-
-  const data = await api({
-
-    action:"checkin",
-
-    storeId:storeId,
-
-    lineUserId:lineUserId,
-
-    lineDisplayName:lineDisplayName,
-
-    pictureUrl:linePicture
-
-  });
-
-  if(!data.success){
-
-    result.innerHTML =
-      `<p class="bad">${data.message}</p>`;
-
-    return;
-
-  }
-
-  customerId = data.customerId;
-
-  localStorage.setItem("customerId",customerId);
-
-  result.innerHTML = `
-
-    <div class="coupon">
-
-      <div class="big">
-        🎯 ${data.prize}
-      </div>
-
-      <p class="ok">${data.message}</p>
-
-      <p style="margin-top:20px;">
-        お名前：
-        <b>${lineDisplayName}</b>
-      </p>
-
-      <p style="margin-top:10px;">
-        クーポンコード：
-        <b>${data.couponCode}</b>
-      </p>
-
-      <p style="margin-top:10px;">
-        使用可能：
-        <b>${data.usableDate}</b>
-      </p>
-
-      <p style="margin-top:18px;">
-        ${
-          data.lineAdded
-          ? "LINE友だち確認済み・当日使用OK"
-          : "次回来店時から使用できます"
-        }
-      </p>
-
-      <p class="small">
-        LINEユーザー情報は店舗管理用に保存されています。
-      </p>
-
+    <div class="sub">
+      NFCタッチで来店記録。<br>
+      LINE連携でクーポン管理。
     </div>
 
-  `;
+    <div id="userName">
+      LINEログイン確認中...
+    </div>
 
-  loadCoupons();
+    <div id="loginStatus"></div>
 
-}
+    <select id="storeSelect">
+      <option value="honmachi">本町店</option>
+      <option value="namba">難波店</option>
+      <option value="umeda">梅田店</option>
+    </select>
 
-async function loadCoupons(){
+    <button class="start" onclick="startRoulette()">
+      START
+    </button>
 
-  const box =
-    document.getElementById("couponList");
+    <button class="coupon" onclick="goOfficialLine()">
+      マイクーポンを見る
+    </button>
 
-  const customerId =
-    localStorage.getItem("customerId");
+    <div id="result"></div>
 
-  if(!customerId){
+  </div>
 
-    box.innerHTML = "";
-    return;
+  <script>
 
-  }
+    const LIFF_ID = "2010146801-oMs3Tgbe";
 
-  const data = await api({
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbzRQROXqwTQhZaKJT8a0CCbnxwrH4WnPVV-C7KGeU9VbqeQz9n_9LLpDueyG9EjLKApYA/exec";
 
-    action:"getCoupons",
-    customerId:customerId
+    const LINE_OFFICIAL_URL =
+      "https://lin.ee/wPuyUo0";
 
-  });
+    let lineUserId = "";
+    let lineDisplayName = "";
 
-  if(!data.success){
+    const userNameEl =
+      document.getElementById("userName");
 
-    box.innerHTML = "";
-    return;
+    const loginStatusEl =
+      document.getElementById("loginStatus");
 
-  }
+    const resultEl =
+      document.getElementById("result");
 
-  box.innerHTML = "<h2>マイクーポン</h2>";
+    const storeSelect =
+      document.getElementById("storeSelect");
 
-  data.coupons.forEach(c=>{
+    async function main() {
 
-    box.innerHTML += `
+      try {
 
-      <div class="coupon">
+        await liff.init({
+          liffId: LIFF_ID
+        });
 
-        <h3>${c.prize}</h3>
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
 
-        <p style="margin-top:18px;">
-          お名前：
-          <b>${c.lineDisplayName}</b>
-        </p>
+        const profile =
+          await liff.getProfile();
 
-        <p style="margin-top:10px;">
-          コード：
-          <b>${c.couponCode}</b>
-        </p>
+        lineUserId =
+          profile.userId;
 
-        <p style="margin-top:10px;">
-          使用可能：
-          <b>${c.usableDate}</b>
-        </p>
+        lineDisplayName =
+          profile.displayName;
 
-        <p style="margin-top:14px;">
-          ${c.note}
-        </p>
+        userNameEl.innerText =
+          `${lineDisplayName} さん、こんにちは`;
 
-        <input
-          id="pin_${c.couponCode}"
-          placeholder="店員PINを入力"
-        />
+        loginStatusEl.innerText =
+          "LINEログイン済み";
 
-        <button
-          onclick="useCoupon('${c.couponCode}')"
-        >
-          使用する
-        </button>
+      } catch (error) {
 
-      </div>
+        userNameEl.innerText =
+          "LINEログインエラー";
 
-    `;
+        resultEl.innerText =
+          "LINEアプリから開いてください";
 
-  });
+        console.error(error);
+      }
+    }
 
-}
+    async function startRoulette() {
 
-async function useCoupon(code){
+      if (!lineUserId) {
+        alert("LINEログインが必要です");
+        return;
+      }
 
-  const pin =
-    document.getElementById(`pin_${code}`).value;
+      resultEl.innerText =
+        "ルーレット中...";
 
-  const res = await api({
+      try {
 
-    action:"useCoupon",
-    couponCode:code,
-    pin:pin
+        const res = await fetch(API_URL, {
+          method: "POST",
 
-  });
+          body: JSON.stringify({
+            storeId: storeSelect.value,
+            lineUserId: lineUserId,
+            lineDisplayName: lineDisplayName
+          })
+        });
 
-  alert(res.message);
+        const data =
+          await res.json();
 
-  loadCoupons();
+        if (data.ok) {
 
-}
+          resultEl.innerText =
+            `🎉 ${data.couponName} を発行しました`;
 
-</script>
+          setTimeout(() => {
+
+            window.location.href =
+              LINE_OFFICIAL_URL;
+
+          }, 1500);
+
+        } else {
+
+          resultEl.innerText =
+            data.message ||
+            "今日はすでに参加済みです";
+        }
+
+      } catch (error) {
+
+        resultEl.innerText =
+          "通信エラーが発生しました";
+
+        console.error(error);
+      }
+    }
+
+    function goOfficialLine() {
+
+      window.location.href =
+        LINE_OFFICIAL_URL;
+    }
+
+    main();
+
+  </script>
 
 </body>
 </html>
