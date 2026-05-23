@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-
   <title>NFC来店ルーレット</title>
-
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
@@ -33,27 +31,26 @@
     h1 {
       font-size: 34px;
       line-height: 1.35;
-      margin-bottom: 22px;
+      margin-bottom: 20px;
     }
 
     .sub {
       color: #bdbdbd;
       font-size: 18px;
       line-height: 1.7;
-      margin-bottom: 36px;
+      margin-bottom: 30px;
     }
 
     #userName {
       font-size: 26px;
       font-weight: 800;
       line-height: 1.5;
-      margin-bottom: 12px;
     }
 
     #loginStatus {
       color: #5ef28b;
       font-size: 20px;
-      margin-bottom: 34px;
+      margin: 14px 0 30px;
     }
 
     select,
@@ -78,36 +75,38 @@
       color: white;
     }
 
-    .coupon {
+    .line {
+      background: #06c755;
+      color: white;
+      display: none;
+    }
+
+    .subButton {
       background: #444;
       color: white;
     }
 
     #result {
-      margin-top: 28px;
+      margin-top: 24px;
       font-size: 20px;
       color: #ff9aa8;
-      line-height: 1.6;
+      line-height: 1.7;
+      white-space: pre-line;
       min-height: 32px;
     }
   </style>
 </head>
 
 <body>
-
   <div class="card">
-
     <h1>🎯 NFC来店ルーレット</h1>
 
     <div class="sub">
       NFCタッチで来店記録。<br>
-      LINE連携でクーポン管理。
+      LINE追加で本日使えるクーポンを受け取れます。
     </div>
 
-    <div id="userName">
-      LINEログイン確認中...
-    </div>
-
+    <div id="userName">LINEログイン確認中...</div>
     <div id="loginStatus"></div>
 
     <select id="storeSelect">
@@ -116,47 +115,46 @@
       <option value="umeda">梅田店</option>
     </select>
 
-    <button class="start" onclick="startRoulette()">
-      START
+    <button class="start" onclick="startRoulette()">START</button>
+
+    <button id="lineButton" class="line" onclick="openOfficialLine()">
+      公式LINEを追加する
     </button>
 
-    <button class="coupon" onclick="goOfficialLine()">
-      マイクーポンを見る
+    <button id="sendButton" class="line" onclick="sendCouponToLine()">
+      追加後、LINEにクーポンを送る
+    </button>
+
+    <button class="subButton" onclick="reloadPage()">
+      再読み込み
     </button>
 
     <div id="result"></div>
-
   </div>
 
   <script>
-
     const LIFF_ID = "2010146801-oMs3Tgbe";
 
     const API_URL =
-      "https://script.google.com/macros/s/AKfycbzRQROXqwTQhZaKJT8a0CCbnxwrH4WnPVV-C7KGeU9VbqeQz9n_9LLpDueyG9EjLKApYA/exec";
+      "https://script.google.com/macros/s/AKfycbyx6PMXZA1mnq-yRx2CRvKWvV4X5JA60kPLKp0aR7sPLWWySSHnIwQABjGTEQslo80uDQ/exec";
 
     const LINE_OFFICIAL_URL =
       "https://lin.ee/wPuyUo0";
 
     let lineUserId = "";
     let lineDisplayName = "";
+    let isFriend = false;
+    let latestCouponName = "";
 
-    const userNameEl =
-      document.getElementById("userName");
-
-    const loginStatusEl =
-      document.getElementById("loginStatus");
-
-    const resultEl =
-      document.getElementById("result");
-
-    const storeSelect =
-      document.getElementById("storeSelect");
+    const userNameEl = document.getElementById("userName");
+    const loginStatusEl = document.getElementById("loginStatus");
+    const resultEl = document.getElementById("result");
+    const storeSelect = document.getElementById("storeSelect");
+    const lineButton = document.getElementById("lineButton");
+    const sendButton = document.getElementById("sendButton");
 
     async function main() {
-
       try {
-
         await liff.init({
           liffId: LIFF_ID
         });
@@ -166,95 +164,123 @@
           return;
         }
 
-        const profile =
-          await liff.getProfile();
+        const profile = await liff.getProfile();
 
-        lineUserId =
-          profile.userId;
+        lineUserId = profile.userId;
+        lineDisplayName = profile.displayName;
 
-        lineDisplayName =
-          profile.displayName;
+        try {
+          const friendship = await liff.getFriendship();
+          isFriend = friendship.friendFlag;
+        } catch (e) {
+          isFriend = false;
+        }
 
         userNameEl.innerText =
           `${lineDisplayName} さん、こんにちは`;
 
         loginStatusEl.innerText =
-          "LINEログイン済み";
+          isFriend ? "公式LINE追加済み" : "LINEログイン済み";
 
       } catch (error) {
-
-        userNameEl.innerText =
-          "LINEログインエラー";
-
-        resultEl.innerText =
-          "LINEアプリから開いてください";
-
+        userNameEl.innerText = "LINEログインエラー";
+        loginStatusEl.innerText = "";
+        resultEl.innerText = "LINEアプリから開いてください";
         console.error(error);
       }
     }
 
     async function startRoulette() {
-
       if (!lineUserId) {
         alert("LINEログインが必要です");
         return;
       }
 
-      resultEl.innerText =
-        "ルーレット中...";
+      resultEl.innerText = "ルーレット中...";
+      lineButton.style.display = "none";
+      sendButton.style.display = "none";
 
       try {
-
         const res = await fetch(API_URL, {
           method: "POST",
-
           body: JSON.stringify({
             storeId: storeSelect.value,
             lineUserId: lineUserId,
-            lineDisplayName: lineDisplayName
+            lineDisplayName: lineDisplayName,
+            isFriend: isFriend
           })
         });
 
-        const data =
-          await res.json();
+        const data = await res.json();
+
+        latestCouponName = data.couponName || "";
 
         if (data.ok) {
+          if (data.lineResult === "LINE送信成功") {
+            resultEl.innerText =
+              `🎉 ${data.couponName}\n\nLINEにクーポンを送信しました。\nトーク画面で提示してください。`;
+          } else {
+            resultEl.innerText =
+              `🎉 ${data.couponName}\n\n本日利用できます。\n公式LINEを追加すると、このクーポンをLINEに保存できます。`;
 
-          resultEl.innerText =
-            `🎉 ${data.couponName} を発行しました`;
-
-          setTimeout(() => {
-
-            window.location.href =
-              LINE_OFFICIAL_URL;
-
-          }, 1500);
-
+            lineButton.style.display = "block";
+            sendButton.style.display = "block";
+          }
         } else {
-
           resultEl.innerText =
-            data.message ||
-            "今日はすでに参加済みです";
+            data.message || "エラーが発生しました";
         }
 
       } catch (error) {
-
-        resultEl.innerText =
-          "通信エラーが発生しました";
-
+        resultEl.innerText = "通信エラーが発生しました";
         console.error(error);
       }
     }
 
-    function goOfficialLine() {
+    function openOfficialLine() {
+      window.location.href = LINE_OFFICIAL_URL;
+    }
 
-      window.location.href =
-        LINE_OFFICIAL_URL;
+    async function sendCouponToLine() {
+      if (!lineUserId || !latestCouponName) {
+        alert("先にルーレットを回してください");
+        return;
+      }
+
+      resultEl.innerText = "LINEにクーポン送信中...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            storeId: storeSelect.value,
+            lineUserId: lineUserId,
+            lineDisplayName: lineDisplayName,
+            isFriend: true
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.lineResult === "LINE送信成功") {
+          resultEl.innerText =
+            `🎉 ${data.couponName}\n\nLINEに送信しました。\nトーク画面で提示してください。`;
+        } else {
+          resultEl.innerText =
+            "まだ公式LINE追加が確認できません。\n追加後に再読み込みして、もう一度お試しください。";
+        }
+
+      } catch (error) {
+        resultEl.innerText = "送信エラーが発生しました";
+        console.error(error);
+      }
+    }
+
+    function reloadPage() {
+      window.location.reload();
     }
 
     main();
-
   </script>
-
 </body>
 </html>
