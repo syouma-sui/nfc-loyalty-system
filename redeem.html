@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>クーポン使用確認</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090909;
+      --panel: #161616;
+      --line: #2c261b;
+      --gold: #d8b56d;
+      --text: #f7f2e8;
+      --muted: #aaa39a;
+      --danger: #ff7c7c;
+      --ok: #6ee7a8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at top, rgba(216, 181, 109, 0.16), transparent 34%),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 22px;
+    }
+
+    main {
+      width: min(100%, 430px);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 26px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+    }
+
+    .eyebrow {
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      margin: 0 0 10px;
+    }
+
+    h1 {
+      font-size: 26px;
+      line-height: 1.28;
+      margin: 0 0 18px;
+    }
+
+    .coupon {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 16px 0;
+      margin: 18px 0;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      margin: 10px 0;
+    }
+
+    .row strong {
+      color: var(--text);
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+      margin: 18px 0 8px;
+    }
+
+    input,
+    button {
+      width: 100%;
+      min-height: 54px;
+      border-radius: 14px;
+      border: 0;
+      font: inherit;
+    }
+
+    input {
+      background: #0d0d0d;
+      color: var(--text);
+      border: 1px solid #383225;
+      padding: 0 16px;
+      font-size: 20px;
+      letter-spacing: 0.18em;
+      text-align: center;
+    }
+
+    button {
+      margin-top: 14px;
+      background: var(--gold);
+      color: #141006;
+      font-weight: 800;
+    }
+
+    button:disabled {
+      background: #514a3b;
+      color: #9d9484;
+    }
+
+    .message {
+      min-height: 28px;
+      margin-top: 16px;
+      color: var(--muted);
+      line-height: 1.65;
+      white-space: pre-line;
+    }
+
+    .message.error {
+      color: var(--danger);
+    }
+
+    .message.ok {
+      color: var(--ok);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">COUPON REDEEM</p>
+    <h1>スタッフ確認</h1>
+
+    <section class="coupon" aria-live="polite">
+      <div class="row"><span>クーポン</span><strong id="couponName">確認中...</strong></div>
+      <div class="row"><span>店舗</span><strong id="storeId">-</strong></div>
+      <div class="row"><span>有効期限</span><strong id="expiresAt">-</strong></div>
+      <div class="row"><span>状態</span><strong id="status">-</strong></div>
+      <div class="row"><span>ID</span><strong id="couponIdText">-</strong></div>
+    </section>
+
+    <div id="pinArea" hidden>
+      <label for="pin">スタッフPIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN" />
+      <button id="redeemButton" type="button">使用済みにする</button>
+    </div>
+
+    <div id="message" class="message">クーポン情報を確認しています。</div>
+  </main>
+
+  <script>
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbzo-rZoKtY0XCWizPW8hjwQvqSQz8P_0TyNKt5LUAeKtgRQHfdwQXjktuwfWmFq7XSN5w/exec";
+
+    const params = new URLSearchParams(window.location.search);
+    const couponId = params.get("couponId") || "";
+    const storeId = params.get("storeId") || "";
+
+    const couponNameEl = document.getElementById("couponName");
+    const storeIdEl = document.getElementById("storeId");
+    const expiresAtEl = document.getElementById("expiresAt");
+    const statusEl = document.getElementById("status");
+    const couponIdTextEl = document.getElementById("couponIdText");
+    const pinArea = document.getElementById("pinArea");
+    const pinEl = document.getElementById("pin");
+    const redeemButton = document.getElementById("redeemButton");
+    const messageEl = document.getElementById("message");
+
+    function setMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = "message" + (type ? " " + type : "");
+    }
+
+    async function postToApi(payload) {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      return response.json();
+    }
+
+    async function loadCoupon() {
+      if (!couponId) {
+        setMessage("クーポンIDが見つかりません。", "error");
+        couponNameEl.textContent = "-";
+        return;
+      }
+
+      couponIdTextEl.textContent = couponId;
+
+      try {
+        const data = await postToApi({
+          action: "couponStatus",
+          couponId: couponId
+        });
+
+        if (!data.ok) {
+          setMessage(data.message || "クーポンを確認できませんでした。", "error");
+          couponNameEl.textContent = "-";
+          return;
+        }
+
+        couponNameEl.textContent = data.couponName || "-";
+        storeIdEl.textContent = data.storeId || storeId || "-";
+        expiresAtEl.textContent = data.expiresAt || "-";
+        statusEl.textContent = data.status || "-";
+
+        if (data.status === "未使用") {
+          pinArea.hidden = false;
+          setMessage("会計時にスタッフがPINを入力してください。");
+        } else if (data.status === "使用済み") {
+          setMessage("このクーポンは使用済みです。", "error");
+        } else {
+          setMessage("このクーポンは有効期限切れです。", "error");
+        }
+      } catch (error) {
+        setMessage("通信エラーが発生しました。", "error");
+      }
+    }
+
+    async function redeemCoupon() {
+      const pin = pinEl.value.trim();
+
+      if (!pin) {
+        setMessage("スタッフPINを入力してください。", "error");
+        return;
+      }
+
+      redeemButton.disabled = true;
+      setMessage("確認しています。");
+
+      try {
+        const data = await postToApi({
+          action: "redeemCoupon",
+          couponId: couponId,
+          storeId: storeId,
+          pin: pin
+        });
+
+        if (data.ok) {
+          statusEl.textContent = "使用済み";
+          pinArea.hidden = true;
+          setMessage("使用済みにしました。\n使用日時: " + data.usedAt, "ok");
+        } else {
+          setMessage(data.message || "使用済みにできませんでした。", "error");
+        }
+      } catch (error) {
+        setMessage("通信エラーが発生しました。", "error");
+      } finally {
+        redeemButton.disabled = false;
+      }
+    }
+
+    redeemButton.addEventListener("click", redeemCoupon);
+    loadCoupon();
+  </script>
+</body>
+</html>
