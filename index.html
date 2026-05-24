@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NFC来店ルーレット</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-
   <style>
     body {
       margin: 0;
@@ -17,7 +16,6 @@
       align-items: center;
       min-height: 100vh;
     }
-
     .card {
       width: 86%;
       max-width: 430px;
@@ -27,22 +25,18 @@
       text-align: center;
       box-shadow: 0 20px 50px rgba(0,0,0,0.45);
     }
-
     h1 {
       font-size: 34px;
       line-height: 1.35;
       margin-bottom: 20px;
     }
-
     .sub {
       color: #bdbdbd;
       font-size: 18px;
       line-height: 1.7;
       margin-bottom: 30px;
     }
-
-    select,
-    button {
+    select, button {
       width: 100%;
       border: none;
       border-radius: 18px;
@@ -52,23 +46,23 @@
       margin-bottom: 16px;
       box-sizing: border-box;
     }
-
     select {
       background: #f1f1f1;
       color: #111;
     }
-
     .start {
       background: #06c755;
       color: white;
     }
-
+    .start:disabled {
+      background: #555;
+      color: #bbb;
+    }
     .line {
       background: #06c755;
       color: white;
       display: none;
     }
-
     #result {
       margin-top: 24px;
       font-size: 20px;
@@ -95,7 +89,9 @@
       <option value="umeda">梅田店</option>
     </select>
 
-    <button class="start" onclick="startRoulette()">START</button>
+    <button id="startButton" class="start" onclick="startRoulette()" disabled>
+      準備中...
+    </button>
 
     <button id="lineButton" class="line" onclick="openOfficialLine()">
       公式LINEを追加してクーポンを保存
@@ -119,12 +115,11 @@
     const resultEl = document.getElementById("result");
     const storeSelect = document.getElementById("storeSelect");
     const lineButton = document.getElementById("lineButton");
+    const startButton = document.getElementById("startButton");
 
     async function main() {
       try {
-        await liff.init({
-          liffId: LIFF_ID
-        });
+        await liff.init({ liffId: LIFF_ID });
 
         if (!liff.isLoggedIn()) {
           liff.login();
@@ -134,20 +129,27 @@
         const profile = await liff.getProfile();
 
         lineUserId = profile.userId;
-        lineDisplayName = profile.displayName;
+        lineDisplayName = profile.displayName || "";
+
+        startButton.disabled = false;
+        startButton.innerText = "START";
+        resultEl.innerText = "";
 
       } catch (error) {
-        resultEl.innerText = "LINEアプリから開いてください";
+        startButton.disabled = true;
+        startButton.innerText = "読み込みエラー";
+        resultEl.innerText = "LINEアプリから開き直してください";
         console.error(error);
       }
     }
 
     async function startRoulette() {
       if (!lineUserId) {
-        alert("LINEログインが必要です");
+        resultEl.innerText = "準備中です。数秒後にもう一度お試しください。";
         return;
       }
 
+      startButton.disabled = true;
       resultEl.innerText = "ルーレット中...";
       lineButton.style.display = "none";
 
@@ -180,6 +182,9 @@
       } catch (error) {
         resultEl.innerText = "通信エラーが発生しました";
         console.error(error);
+      } finally {
+        startButton.disabled = false;
+        startButton.innerText = "START";
       }
     }
 
